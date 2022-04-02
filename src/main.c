@@ -77,11 +77,16 @@ int main(int argc, char* argv[])
 
       char outfile[512];
       char datfile[512];
+      char sitefile[512];
 
       char sep[] = "\n \tNCLBW";
       char* token;
 
-      FILE* fp= stdout;
+      FILE* fp;
+
+
+      
+      
       
 
       for(int i=1; i<argc; ++i){
@@ -93,12 +98,22 @@ int main(int argc, char* argv[])
 
 	    fname_join(outfile, path, base, ".out");
 	    fname_join(datfile, path, base, ".dat");
+	    fname_join(sitefile, path, base, ".site");
+	    
+
+	    fp	= fopen(sitefile, "w" );
+	    if ( fp == NULL ) {
+		  fprintf ( stderr, "couldn't open file '%s'; %s\n",
+			      sitefile, strerror(errno) );
+		  exit (EXIT_FAILURE);
+	    }
+	    fprintf(fp, "===================================================\n");
 	    int numres = get_numres(outfile);
 
 	    struct fasta seq;
 	    fasta_init(&seq, numres);
 	    scanfasta(datfile, &seq);
-	    printf("%s\n", seq.data);
+//	    printf("%s\n", seq.data);
 
 	    struct nucbp* rnabp;
 
@@ -115,15 +130,15 @@ int main(int argc, char* argv[])
 	    struct helix* helix;
 	    int hlxcount;
 	    helix_init(&helix, numres);
-        helix_compute(helix, &hlxcount, rnabp, numres);
-        char hlx[512];
-        for(int j=0; j<hlxcount; ++j){
-            int hsize = helix[j].size;
-            int hstart = helix[j].i[0];
-           // for(int l=0; l<hsize; ++l){
-                strncpy(hlx, seq.data + hstart, hsize);
-                hlx[hsize] = '\0';
-                if(hsize >=3 ){
+	    helix_compute(helix, &hlxcount, rnabp, numres);
+	    char hlx[512];
+	    for(int j=0; j<hlxcount; ++j){
+		  int hsize = helix[j].size;
+		  int hstart = helix[j].i[0];
+		  // for(int l=0; l<hsize; ++l){
+		  strncpy(hlx, seq.data + hstart, hsize);
+		  hlx[hsize] = '\0';
+		  if(hsize >=3 ){
 			if(strchr(hlx, 'T') != NULL && strchr(hlx,'N') == NULL){
 			      fprintf(fp, "DATA  %s %d  %s  %c %d %d %s  ", 
 					  base,
@@ -147,55 +162,57 @@ int main(int argc, char* argv[])
 
 			      }
 			      fprintf(fp, "\n");
+			      fprintf(fp, "---------------------------------------------------\n");
 
 			      gen_pymol(fp, rnabp, base, hstart, hsize, hlx);
+			      fprintf(fp, "===================================================\n");
 			}
-			
-		  }
+
+		}
 		 // }
-		  }
+	}
                 
-        return 0;
-
-	    int len;
-	    int size;
-	    token = strtok(seq.data, sep);
-	    while( token != NULL ){
-		  len = token - seq.data;
-		  size = strlen(token);
-		  if(size >=3 ){
-			if(strchr(token, 'T') != NULL){
-			      fprintf(fp, "DATA  %s %d  %s  %c %d %d %s  ", 
-					  base,
-					  rnabp[len].cifid,
-					  rnabp[len].chain,
-					  rnabp[len].ins,
-					  len+1,
-					  size,
-					  token);
-			      for(int k=0; k<size; ++k){
-				    if(token[k] == 'T'){
-					  int othloc = rnabp[len+k].oth_base_index[1];
-					  fprintf(fp, "    %s:%s-%s",
-						      rnabp[len+k].resname,
-						      rnabp[othloc].resname,
-						      rnabp[len+k].name[1]);
-					  if(rnabp[len+k].numbp >2){
-						fprintf(fp, "*");
-					  }
-				    }
-
-			      }
-			      fprintf(fp, "\n");
-
-			      gen_pymol(fp, rnabp, base, len, size, token);
-			}
-			
-		  }
-		  token = strtok(NULL, sep);
-	    }
+//        return 0;
+//
+//	    int len;
+//	    int size;
+//	    token = strtok(seq.data, sep);
+//	    while( token != NULL ){
+//		  len = token - seq.data;
+//		  size = strlen(token);
+//		  if(size >=3 ){
+//			if(strchr(token, 'T') != NULL){
+//			      fprintf(fp, "DATA  %s %d  %s  %c %d %d %s  ", 
+//					  base,
+//					  rnabp[len].cifid,
+//					  rnabp[len].chain,
+//					  rnabp[len].ins,
+//					  len+1,
+//					  size,
+//					  token);
+//			      for(int k=0; k<size; ++k){
+//				    if(token[k] == 'T'){
+//					  int othloc = rnabp[len+k].oth_base_index[1];
+//					  fprintf(fp, "    %s:%s-%s",
+//						      rnabp[len+k].resname,
+//						      rnabp[othloc].resname,
+//						      rnabp[len+k].name[1]);
+//					  if(rnabp[len+k].numbp >2){
+//						fprintf(fp, "*");
+//					  }
+//				    }
+//
+//			      }
+//			      fprintf(fp, "\n");
+//
+//			      gen_pymol(fp, rnabp, base, len, size, token);
+//			}
+//			
+//		  }
+//		  token = strtok(NULL, sep);
+//	    }
 	    
-	    helix_free_all(helix);
+	    helix_free(helix);
 
 	    free ( rnabp );
 	    rnabp	= NULL;
@@ -203,6 +220,11 @@ int main(int argc, char* argv[])
 	    
 
 	    fasta_free(&seq);
+	    if( fclose(fp) == EOF ) {			/* close output file   */
+		  fprintf ( stderr, "couldn't close file '%s'; %s\n",
+			      sitefile, strerror(errno) );
+		  exit (EXIT_FAILURE);
+	    }
       }
 
 }
