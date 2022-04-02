@@ -6,7 +6,7 @@ CC := cc # This is the main compiler
 # CC := clang --analyze # and comment out the linker last line for sanity
 SRCDIR := src
 BUILDDIR := obj
-TARGET := bin/ligsite
+TARGET := bin/bsfind
  
 SRCEXT := c
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
