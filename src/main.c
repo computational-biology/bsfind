@@ -20,60 +20,25 @@
 #include <string.h>
 #include <ctype.h>
 
+
+#include "biodefs.h"
+#include "bioargs.h"
 #include "bioio.h"
-#include "bioio.h"
+#include "polymer.h"
 #include "rnabp.h"
 #include "helix.h"
+#include "ligsite.h"
 
 
- 
 
 
-void gen_pymol(FILE* fp, struct nucbp* rnabp, char* cif, int from, int size, char* seq)
-{
-     
-      int othindex;
-      fprintf(fp, "select %s%d%s, ", cif, rnabp[from].cifid, rnabp[from].chain);
-      for(int k=0; k<size; ++k){
-	    fprintf(fp, "(resi %d and chain %s)", 
-			rnabp[from + k].cifid,
-			rnabp[from + k].chain);
 
-	    othindex = rnabp[from + k].oth_base_index[0];
-	    
-	    fprintf(fp, "(resi %d and chain %s)", 
-			rnabp[othindex].cifid,
-			rnabp[othindex].chain);
-      }
-
-      fprintf(fp, "\n");
-      fprintf(fp, "as spheres,  %s%d%s\n", cif, rnabp[from].cifid, rnabp[from].chain);
-      fprintf(fp, "show cartoon,  %s%d%s\n", cif, rnabp[from].cifid, rnabp[from].chain);
-
-      fprintf(fp, "select %s%d%st, ", cif, rnabp[from].cifid, rnabp[from].chain);
-      for(int k=0; k<size; ++k){
-	    if(seq[k] == 'T'){
-
-		  othindex = rnabp[from + k].oth_base_index[1];
-
-		  fprintf(fp, "(resi %d and chain %s)", 
-			      rnabp[othindex].cifid,
-			      rnabp[othindex].chain);
-
-	    }
-      }
-      fprintf(fp, "\n");
-      fprintf(fp, "as spheres, %s%d%st\n", cif, rnabp[from].cifid, rnabp[from].chain);
-      fprintf(fp, "show cartoon, %s%d%st\n", cif, rnabp[from].cifid, rnabp[from].chain);
-      fprintf(fp, "util.cbay %s%d%st\n", cif, rnabp[from].cifid, rnabp[from].chain);
-
-}
 
 int main(int argc, char* argv[])
 {
-      char base[32];
-      char path[512];
-      char ext[512];
+
+
+      char accn[64];
 
       char outfile[512];
       char datfile[512];
@@ -85,21 +50,56 @@ int main(int argc, char* argv[])
       FILE* fp;
 
 
-      
-      
-      
+      struct args args;
 
-      for(int i=1; i<argc; ++i){
-	    fname_split(path, base, ext, argv[i]);
-	    if(strcmp(ext, ".dat") != 0){    /* Exception Handling */ 
-		  fprintf(stderr, "Error in function %s. (File: %s, Line %d)... Invalid extn %s\n", __func__, __FILE__, __LINE__, ext);
+      args_init(&args);
+
+      int* file_index = (int*) malloc(argc * sizeof(int));
+
+      if ( file_index == NULL ) {
+	    fprintf ( stderr, "\ndynamic memory allocation failed in function %s()\n" , __func__);
+	    exit (EXIT_FAILURE);
+      }
+
+      int file_count = 0;
+      args_process_argv(argc, argv, &args, file_index, &file_count);
+      struct atom* atoms;
+      int numatoms;
+
+
+
+      for(int i=0; i<file_count; ++i){
+	    strcpy(args.file.full_name, argv[file_index[i]]);
+
+
+	    fname_split(args.file.path, args.file.basename, args.file.ext, args.file.full_name);
+	    //	    fname_split(path, base, ext, argv[i]);
+	    if(strcmp(args.file.ext, ".cif") != 0){    /* Exception Handling */ 
+		  fprintf(stderr, "Error in function %s. (File: %s, Line %d)... Invalid extn %s\n", __func__, __FILE__, __LINE__, args.file.ext);
 		  exit(EXIT_FAILURE);
 	    }
 
-	    fname_join(outfile, path, base, ".out");
-	    fname_join(datfile, path, base, ".dat");
-	    fname_join(sitefile, path, base, ".site");
+	    fname_join(outfile, args.file.path, args.file.basename, ".out");
+	    fname_join(datfile, args.file.path, args.file.basename, ".dat");
+	    fname_join(sitefile, args.file.path, args.file.basename, ".site");
+
+	    struct atom* atoms;
+	    int atom_sz;
+	    if( strcmp(args.file.ext, ".cif") == 0 ){
+		  scancif(args.file.full_name, is_modi_nucleic, NULL, NULL, &atoms, &atom_sz, NUC_TYPE, NULL, 'S');
+	    }else{    /* Exception Handling */ 
+		  fprintf(stderr, "Error in function %s()... invalid extension of file. (%s)\n", __func__, args.file.ext);
+		  exit(EXIT_FAILURE);
+	    }
+
+
+	    struct polymer polymer;
+	    polymer_create(&polymer, atoms, atom_sz);
+
 	    
+
+
+
 
 	    fp	= fopen(sitefile, "w" );
 	    if ( fp == NULL ) {
@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
 	    struct fasta seq;
 	    fasta_init(&seq, numres);
 	    scanfasta(datfile, &seq);
-//	    printf("%s\n", seq.data);
+	    //	    printf("%s\n", seq.data);
 
 	    struct nucbp* rnabp;
 
@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
 	    }
 
 	    rnabp_scan_out(rnabp, numres, outfile);
-	    
+
 	    struct helix* helix;
 	    int hlxcount;
 	    helix_init(&helix, numres);
@@ -139,92 +139,34 @@ int main(int argc, char* argv[])
 		  strncpy(hlx, seq.data + hstart, hsize);
 		  hlx[hsize] = '\0';
 		  if(hsize >=3 ){
-			if(strchr(hlx, 'T') != NULL && strchr(hlx,'N') == NULL){
-			      fprintf(fp, "DATA  %s %d  %s  %c %d %d %s  ", 
-					  base,
-					  rnabp[hstart].cifid,
-					  rnabp[hstart].chain,
-					  rnabp[hstart].ins,
-					  hstart+1,
-					  hsize,
-					  hlx);
-			      for(int k=0; k<hsize; ++k){
-				    if(hlx[k] == 'T'){
-					  int othloc = rnabp[hstart+k].oth_base_index[1];
-					  fprintf(fp, "    %s:%s-%s",
-						      rnabp[hstart+k].resname,
-						      rnabp[othloc].resname,
-						      rnabp[hstart+k].name[1]);
-					  if(rnabp[hstart+k].numbp >2){
-						fprintf(fp, "*");
-					  }
-				    }
-
-			      }
-			      fprintf(fp, "\n");
-			      fprintf(fp, "---------------------------------------------------\n");
-
-			      gen_pymol(fp, rnabp, base, hstart, hsize, hlx);
+			if(strchr(hlx, 'T') != NULL && strchr(hlx,'N') == NULL && strchr(hlx, 'W') == NULL){
+			      strcpy(accn, args.file.basename);
+			      ligsite_comp( fp, rnabp, accn, hstart, hsize, hlx);
+			      ligsite_phosp_dist(fp, &polymer, rnabp, accn, hstart, hsize, hlx);
+			      ligsite_pymol(fp, rnabp, accn, hstart, hsize, hlx);
 			      fprintf(fp, "===================================================\n");
 			}
 
-		}
-		 // }
-	}
-                
-//        return 0;
-//
-//	    int len;
-//	    int size;
-//	    token = strtok(seq.data, sep);
-//	    while( token != NULL ){
-//		  len = token - seq.data;
-//		  size = strlen(token);
-//		  if(size >=3 ){
-//			if(strchr(token, 'T') != NULL){
-//			      fprintf(fp, "DATA  %s %d  %s  %c %d %d %s  ", 
-//					  base,
-//					  rnabp[len].cifid,
-//					  rnabp[len].chain,
-//					  rnabp[len].ins,
-//					  len+1,
-//					  size,
-//					  token);
-//			      for(int k=0; k<size; ++k){
-//				    if(token[k] == 'T'){
-//					  int othloc = rnabp[len+k].oth_base_index[1];
-//					  fprintf(fp, "    %s:%s-%s",
-//						      rnabp[len+k].resname,
-//						      rnabp[othloc].resname,
-//						      rnabp[len+k].name[1]);
-//					  if(rnabp[len+k].numbp >2){
-//						fprintf(fp, "*");
-//					  }
-//				    }
-//
-//			      }
-//			      fprintf(fp, "\n");
-//
-//			      gen_pymol(fp, rnabp, base, len, size, token);
-//			}
-//			
-//		  }
-//		  token = strtok(NULL, sep);
-//	    }
-	    
+		  }
+	    }
+
+	    fasta_free(&seq);
+
 	    helix_free(helix);
 
 	    free ( rnabp );
 	    rnabp	= NULL;
 
-	    
 
-	    fasta_free(&seq);
+
 	    if( fclose(fp) == EOF ) {			/* close output file   */
 		  fprintf ( stderr, "couldn't close file '%s'; %s\n",
 			      sitefile, strerror(errno) );
 		  exit (EXIT_FAILURE);
 	    }
+	    free(atoms);
+	    atoms = NULL;
+	    polymer_free(&polymer);
       }
 
 }

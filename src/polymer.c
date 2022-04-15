@@ -44,7 +44,7 @@ static void partition_into_residues(const struct atom* atom_array, const int num
       for(int i=1; i<num_atoms; ++i){
 	    if(atom_array[i].resid != atom_array[i-1].resid ||
 			strcmp(atom_array[i].chain, atom_array[i-1].chain) != 0||
-			atom_array[i].model != atom_array[i-1].model){
+			atom_array[i].model != atom_array[i-1].model || strcmp(atom_array[i].ins, atom_array[i-1].ins) != 0){
 
 		  if(index == max_size){
 			max_size *= 2;
@@ -80,6 +80,18 @@ void residue_printpdb(FILE* fp, struct residue* res)
         print_pdb_line(fp, res->H +i);
     }
 }
+
+struct atom* residue_get_atom(struct residue* res, char* atom_loc_name)
+{
+
+      
+      for(int i=0; i<res->size; ++i){
+	    if(strcmp(res->atoms[i].loc, atom_loc_name) == 0){
+		  return res->atoms + i;
+	    }
+      }
+      return NULL;
+}
 void residue_addh(struct residue* res, int precur_indx, Point3d position, char* h_name)
 {
       if(Point3d_is_uninit(&position) == TRUE){
@@ -113,6 +125,7 @@ void polymer_create(struct polymer* polymer, struct atom* atoms, int numatom){
       polymer->residues = (struct residue*) malloc (numres * sizeof(struct residue));
       int atmpos;
       int ressize;
+      
       for(int i=0; i<numres; ++i){
 	    atmpos = res_partition[i];
 	    ressize= res_partition[i+1] - atmpos;

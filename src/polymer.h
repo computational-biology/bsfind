@@ -33,6 +33,7 @@ struct residue{
 
 
 void residue_addh(struct residue* res, int precur_indx, Point3d position, char* h_name);
+struct atom* residue_get_atom(struct residue* res, char* atom_loc_name);
 void residue_printpdb(FILE* fp, struct residue* res);
 
 

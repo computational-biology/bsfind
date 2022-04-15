@@ -129,7 +129,7 @@ void fasta_init(struct fasta* seq, int size)
 {
     
       seq->size = size;
-      seq->data	= malloc ( (size + 1) * sizeof(char) );
+      seq->data	= (char*) malloc ( (size + 5) * sizeof(char) );
       if ( seq->data==NULL ) {
 	    fprintf ( stderr, "\ndynamic memory allocation failed in function %s()\n" , __func__);
 	    exit (EXIT_FAILURE);
@@ -150,14 +150,21 @@ void scanfasta(char* file_name, struct fasta* seq){
 			file_name, strerror(errno) );
 	    exit (EXIT_FAILURE);
       }
+      int size = seq->size;
       seq->size = 0;
       char line[512];
       int len;
       while(fgets(line, sizeof(line), fp) != NULL) {
 	    if(line[0] == '>') continue;
 	    len = sprintf(seq->data + seq->size,"%s", line);
+	   
 	    seq->size += len - 1; // To discard \n
+	    
       }
+      if(seq->size != size){
+	        fprintf(stderr, "error\n");
+	        exit(1);
+	        }
       seq->data[seq->size] = '\0';
       if( fclose(fp) == EOF ) {			/* close input file   */
 	    fprintf ( stderr, "couldn't close file '%s'; %s\n",
